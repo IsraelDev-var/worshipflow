@@ -1,0 +1,11 @@
+{
+  "name": "@worshipflow/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'Express will be installed here in next step'",
+    "build": "echo 'build placeholder'",
+    "lint": "echo 'lint placeholder'",
+    "test": "echo 'test placeholder'"
+  }
+}
