@@ -1,0 +1,325 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==========================
+// Organization (Iglesia)
+// ==========================
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String   @db.VarChar(150)
+  slug      String   @unique @db.VarChar(100)
+  logoUrl   String?  @db.Text
+  timezone  String   @default("America/Santo_Domingo") @db.VarChar(50)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users      User[]
+  songs      Song[]
+  setlists   Setlist[]
+  events     Event[]
+  categories Category[]
+
+  @@map("organizations")
+}
+
+
+// ============================================
+// USER (Usuario)
+// ============================================
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique @db.VarChar(255)
+  passwordHash String  @db.VarChar(255)
+  firstName    String  @db.VarChar(100)
+  lastName     String  @db.VarChar(100)
+  avatarUrl    String? @db.Text
+  phone        String? @db.VarChar(20)
+  role         Role    @default(MUSICIAN)
+  isActive     Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Email verification
+  emailVerified     Boolean  @default(false)
+  emailVerificationToken String? @unique @db.VarChar(255)
+  emailVerificationExpiresAt DateTime?
+  
+  // Password recovery
+  passwordResetToken String? @unique @db.VarChar(255)
+  passwordResetExpiresAt DateTime?
+
+  // Foreign Keys
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Relations
+  instruments       UserInstrument[]
+  songsCreated      Song[]           @relation("CreatedBy")
+  eventsCreated     Event[]          @relation("CreatedBy")
+  setlistsCreated   Setlist[]        @relation("CreatedBy")
+  eventMembers      EventMember[]
+  createdCategories Category[]       @relation("CreatedBy")
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  LEADER
+  MUSICIAN
+  GUEST
+}
+
+// ============================================
+// INSTRUMENT
+// ============================================
+model Instrument {
+  id   String  @id @default(cuid())
+  name String  @unique @db.VarChar(100)
+  icon String? @db.VarChar(50)
+
+  // Relations
+  users        UserInstrument[]
+  eventMembers EventMember[]
+
+  @@map("instruments")
+}
+
+// ============================================
+// USER INSTRUMENT (Relación N:M)
+// ============================================
+model UserInstrument {
+  userId       String
+  instrumentId String
+  proficiency  Proficiency @default(INTERMEDIATE)
+  createdAt    DateTime    @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instrument Instrument @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, instrumentId])
+  @@map("user_instruments")
+}
+
+enum Proficiency {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+// ============================================
+// SONG (Canción)
+// ============================================
+model Song {
+  id              String    @id @default(cuid())
+  title           String    @db.VarChar(255)
+  author          String?   @db.VarChar(255)
+  originalKey     String    @db.VarChar(5)
+  tempo           Int?
+  timeSignature   String    @default("4/4") @db.VarChar(10)
+  durationSeconds Int?
+  content         String    @db.Text
+  lastUsedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Foreign Keys
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdById    String?
+  createdBy      User?        @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  // Relations
+  sections     SongSection[]
+  categories   Category[]
+  setlistSongs SetlistSong[]
+
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([title])
+  @@map("songs")
+}
+
+// ============================================
+// SONG SECTION
+// ============================================
+model SongSection {
+  id      String      @id @default(cuid())
+  type    SectionType
+  order   Int
+  content String      @db.Text
+  label   String?     @db.VarChar(50)
+
+  // Foreign Keys
+  songId String
+  song   Song   @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@index([songId])
+  @@map("song_sections")
+}
+
+enum SectionType {
+  INTRO
+  VERSE
+  CHORUS
+  BRIDGE
+  OUTRO
+  PRECHORUS
+  INTERLUDE
+}
+
+// ============================================
+// CATEGORY / TAG
+// ============================================
+model Category {
+  id    String @id @default(cuid())
+  name  String @db.VarChar(100)
+  color String @default("#3B82F6") @db.VarChar(7)
+
+  // Foreign Keys
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdById    String?
+  createdBy      User?        @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  // Relations
+  songs Song[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("categories")
+}
+
+// ============================================
+// SETLIST (Lista de canciones para un servicio)
+// ============================================
+model Setlist {
+  id        String        @id @default(cuid())
+  title     String        @db.VarChar(255)
+  date      DateTime      @db.Date
+  eventType EventType
+  notes     String?       @db.Text
+  status    SetlistStatus @default(DRAFT)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  // Foreign Keys
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdById    String?
+  createdBy      User?        @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  // Relations
+  songs SetlistSong[]
+  event Event?
+
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([date])
+  @@map("setlists")
+}
+
+enum SetlistStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// ============================================
+// SETLIST SONG (Canción en un setlist)
+// ============================================
+model SetlistSong {
+  id        String  @id @default(cuid())
+  position  Int
+  customKey String? @db.VarChar(5)
+  capo      Int     @default(0)
+  notes     String? @db.Text
+
+  // Foreign Keys
+  setlistId String
+  setlist   Setlist @relation(fields: [setlistId], references: [id], onDelete: Cascade)
+  songId    String
+  song      Song    @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@unique([setlistId, position])
+  @@index([setlistId])
+  @@index([songId])
+  @@map("setlist_songs")
+}
+
+// ============================================
+// EVENT (Servicio / Ensayo)
+// ============================================
+model Event {
+  id        String    @id @default(cuid())
+  title     String    @db.VarChar(255)
+  type      EventType
+  date      DateTime  @db.Date
+  startTime DateTime  @db.Time
+  endTime   DateTime? @db.Time
+  location  String?   @db.VarChar(255)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Foreign Keys
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdById    String?
+  createdBy      User?        @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  setlistId      String?      @unique
+  setlist        Setlist?     @relation(fields: [setlistId], references: [id], onDelete: SetNull)
+
+  // Relations
+  members EventMember[]
+
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([date])
+  @@map("events")
+}
+
+enum EventType {
+  SERVICE
+  REHEARSAL
+  SPECIAL
+}
+
+// ============================================
+// EVENT MEMBER (Asignación de músico a evento)
+// ============================================
+model EventMember {
+  id        String           @id @default(cuid())
+  status    AssignmentStatus @default(PENDING)
+  notes     String?          @db.Text
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  // Foreign Keys
+  eventId      String
+  event        Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instrumentId String
+  instrument   Instrument @relation(fields: [instrumentId], references: [id])
+
+  @@unique([eventId, userId, instrumentId])
+  @@index([eventId])
+  @@index([userId])
+  @@map("event_members")
+}
+
+enum AssignmentStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+}
